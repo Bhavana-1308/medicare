@@ -5,6 +5,7 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
+    base: '/medicare/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
