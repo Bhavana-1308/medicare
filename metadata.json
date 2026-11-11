@@ -1,0 +1,6 @@
+{
+  "name": "MediCare – Medicine Reminder and Management System",
+  "description": "Comprehensive medicine reminder, adherence tracking, stock inventory, and caregiver monitoring web platform.",
+  "requestFramePermissions": ["notifications"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

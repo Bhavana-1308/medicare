@@ -1,0 +1,89 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default-deny catch-all safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Helper to check if current user is an authorized caregiver for a given patient email/uid
+    function isLinkedCaregiver(patientUid) {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(patientUid)) &&
+        request.auth.token.email in get(/databases/$(database)/documents/users/$(patientUid)).data.linkedCaregivers;
+    }
+
+    // USERS COLLECTION
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || resource.data.email in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatients);
+      allow list: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if false;
+    }
+
+    // MEDICINES COLLECTION
+    match /medicines/{medicineId} {
+      // Patients can read/manage their own medicines; linked caregivers can read
+      allow get: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        isLinkedCaregiver(resource.data.userId)
+      );
+      
+      allow list: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        isLinkedCaregiver(resource.data.userId)
+      );
+
+      // Only patient owner can create, update, or delete their medicines
+      allow create: if isSignedIn() && 
+        request.resource.data.userId == request.auth.uid &&
+        isValidId(medicineId);
+
+      allow update: if isSignedIn() && 
+        resource.data.userId == request.auth.uid && 
+        request.resource.data.userId == request.auth.uid;
+
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // DOSE LOGS COLLECTION
+    match /doseLogs/{logId} {
+      // Patients can read their own dose logs; linked caregivers can read
+      allow get: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        isLinkedCaregiver(resource.data.userId)
+      );
+
+      allow list: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        isLinkedCaregiver(resource.data.userId)
+      );
+
+      // Only the patient can create or update their own dose log
+      allow create: if isSignedIn() && 
+        request.resource.data.userId == request.auth.uid &&
+        isValidId(logId);
+
+      allow update: if isSignedIn() && 
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.userId == request.auth.uid;
+
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+  }
+}
